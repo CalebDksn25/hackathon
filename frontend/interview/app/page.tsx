@@ -69,6 +69,7 @@ export default function InterviewPrepPage() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
   const [parsedText, setParsedText] = useState<string | null>(null);
+  const [claudeData, setClaudeData] = useState<any>(null);
 
   useEffect(() => {
     if (isGenerating) {
@@ -136,8 +137,34 @@ export default function InterviewPrepPage() {
       const uploadData = await uploadResponse.json();
       setParsedText(uploadData.parsedText);
 
-      // Simulate additional processing time
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Call Claude API to generate interview prep
+      console.log("Calling Claude API...");
+      const claudeResponse = await fetch("/api/claude", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt:
+            "Generate personalized interview preparation based on the uploaded resume and job details.",
+        }),
+      });
+
+      if (!claudeResponse.ok) {
+        throw new Error("Failed to generate interview prep");
+      }
+
+      const claudeData = await claudeResponse.json();
+      console.log("Claude response:", claudeData);
+
+      try {
+        const parsedData = JSON.parse(claudeData.text);
+        setClaudeData(parsedData);
+      } catch (parseError) {
+        console.error("Error parsing Claude response:", parseError);
+        // If parsing fails, store the raw text
+        setClaudeData({ raw: claudeData.text });
+      }
 
       setIsGenerating(false);
       setShowResults(true);
@@ -156,6 +183,7 @@ export default function InterviewPrepPage() {
     setIsGenerating(false);
     setExpandedQuestion(null);
     setParsedText(null);
+    setClaudeData(null);
   };
 
   const getCompanyName = () => {
