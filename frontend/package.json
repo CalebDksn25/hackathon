@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.27",
+    "parallel-web": "^0.2.2"
+  }
+}
