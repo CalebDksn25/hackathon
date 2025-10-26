@@ -3,6 +3,7 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,45 +20,7 @@ import {
   Clock,
   Target,
 } from "lucide-react";
-
-const loadingSteps = [
-  "Scanning company site",
-  "Extracting common interview questions",
-  "Analyzing your experience",
-  "Preparing your mock interview…",
-];
-
-const mockQuestions = [
-  {
-    question: "Tell me about a time you optimized a web app for speed.",
-    why: "This evaluates how you approach real-world performance issues.",
-    tips: "Mention Lighthouse metrics or async loading strategies you've used.",
-  },
-  {
-    question:
-      "How do you handle disagreements with team members about technical decisions?",
-    why: "This assesses your collaboration and communication skills.",
-    tips: "Use the STAR method and emphasize listening and finding common ground.",
-  },
-  {
-    question:
-      "Describe your experience with React and modern frontend frameworks.",
-    why: "This validates your technical expertise for the role requirements.",
-    tips: "Reference specific projects from your resume and mention hooks, state management, and performance optimization.",
-  },
-  {
-    question:
-      "What interests you most about our company's mission and products?",
-    why: "This shows whether you've researched the company and align with their values.",
-    tips: "Connect their mission to your personal values and career goals.",
-  },
-  {
-    question:
-      "Tell me about a challenging bug you debugged and how you approached it.",
-    why: "This reveals your problem-solving methodology and persistence.",
-    tips: "Walk through your debugging process step-by-step, mentioning tools and techniques used.",
-  },
-];
+import { mockQuestions, loadingSteps } from "@/lib/mockData";
 
 export default function InterviewPrepPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -110,69 +73,32 @@ export default function InterviewPrepPage() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!resumeFile) return;
+  const router = useRouter();
 
+  const handleGenerate = async () => {
     setIsGenerating(true);
     setShowResults(false);
 
+    // Simulate generation steps
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+
+    setIsGenerating(false);
+
+    // Save minimal data for the mock dashboard and navigate there
     try {
-      // Upload and parse the resume
-      const formData = new FormData();
-      formData.append("resume", resumeFile);
-      formData.append("candidateId", "");
-      formData.append("filepond", resumeFile);
-      formData.append("jobUrl", jobUrl);
-      formData.append("interviewerName", interviewerName);
-
-      const uploadResponse = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to upload resume");
+      const payload = {
+        jobUrl: jobUrl || "",
+        interviewerName: interviewerName || "",
+        generatedAt: Date.now(),
+      };
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        sessionStorage.setItem("mockInterviewData", JSON.stringify(payload));
       }
-
-      const uploadData = await uploadResponse.json();
-      setParsedText(uploadData.parsedText);
-
-      // Call Claude API to generate interview prep
-      console.log("Calling Claude API...");
-      const claudeResponse = await fetch("/api/claude", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt:
-            "Generate personalized interview preparation based on the uploaded resume and job details.",
-        }),
-      });
-
-      if (!claudeResponse.ok) {
-        throw new Error("Failed to generate interview prep");
-      }
-
-      const claudeData = await claudeResponse.json();
-      console.log("Claude response:", claudeData);
-
-      try {
-        const parsedData = JSON.parse(claudeData.text);
-        setClaudeData(parsedData);
-      } catch (parseError) {
-        console.error("Error parsing Claude response:", parseError);
-        // If parsing fails, store the raw text
-        setClaudeData({ raw: claudeData.text });
-      }
-
-      setIsGenerating(false);
-      setShowResults(true);
-    } catch (error) {
-      console.error("Error:", error);
-      setIsGenerating(false);
-      // You might want to show an error message here
+    } catch (e) {
+      // ignore storage errors
     }
+
+    router.push("/mock");
   };
 
   const handleReset = () => {
@@ -182,8 +108,6 @@ export default function InterviewPrepPage() {
     setShowResults(false);
     setIsGenerating(false);
     setExpandedQuestion(null);
-    setParsedText(null);
-    setClaudeData(null);
   };
 
   const getCompanyName = () => {
@@ -203,7 +127,8 @@ export default function InterviewPrepPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
       <div className="container mx-auto px-4 py-12 md:py-20">
         <div
-          className={showResults ? "max-w-7xl mx-auto" : "max-w-2xl mx-auto"}>
+          className={showResults ? "max-w-7xl mx-auto" : "max-w-2xl mx-auto"}
+        >
           {/* Header */}
           {!showResults && (
             <div className="text-center mb-12 space-y-4">
@@ -213,7 +138,7 @@ export default function InterviewPrepPage() {
                   AI-Powered Interview Prep
                 </span>
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold text-balance">
+              <h1 className="text-5xl md:text-6xl font-bold text-balance">
                 Prepare for your next interview with AI
               </h1>
               <p className="text-lg text-muted-foreground text-pretty">
@@ -308,7 +233,8 @@ export default function InterviewPrepPage() {
                 <div className="space-y-2">
                   <Label
                     htmlFor="interviewer"
-                    className="text-base font-semibold">
+                    className="text-base font-semibold"
+                  >
                     Interviewer Name
                   </Label>
                   <Input
@@ -348,7 +274,7 @@ export default function InterviewPrepPage() {
               <div className="text-center space-y-8">
                 <div className="inline-flex items-center gap-3 text-primary">
                   <Brain className="w-8 h-8 animate-pulse" />
-                  <span className="text-2xl font-bold">
+                  <span className="text-3xl font-bold">
                     Researching {getCompanyName()}...
                   </span>
                 </div>
@@ -377,7 +303,8 @@ export default function InterviewPrepPage() {
                           index <= loadingStep
                             ? "text-foreground"
                             : "text-muted-foreground"
-                        }`}>
+                        }`}
+                      >
                         {step}
                       </span>
                     </div>
@@ -391,7 +318,7 @@ export default function InterviewPrepPage() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
               {/* Dashboard Header */}
               <div className="text-center space-y-3">
-                <h1 className="text-3xl md:text-4xl font-bold text-balance">
+                <h1 className="text-4xl md:text-5xl font-bold text-balance">
                   Your Personalized Interview for Frontend Developer at{" "}
                   {getCompanyName()}
                 </h1>
@@ -405,7 +332,7 @@ export default function InterviewPrepPage() {
                 <div className="lg:col-span-2 space-y-6">
                   {/* Summary Card */}
                   <Card className="p-6 border-2 shadow-lg">
-                    <h2 className="text-xl font-bold mb-4">
+                    <h2 className="text-2xl font-bold mb-4">
                       Here's what to expect based on our analysis:
                     </h2>
                     <div className="flex flex-wrap gap-3">
@@ -432,7 +359,7 @@ export default function InterviewPrepPage() {
 
                   {/* Mock Interview Questions */}
                   <div className="space-y-4">
-                    <h2 className="text-2xl font-bold">
+                    <h2 className="text-3xl font-bold">
                       Mock Interview Questions
                     </h2>
                     {mockQuestions.map((item, index) => (
@@ -447,14 +374,15 @@ export default function InterviewPrepPage() {
                           setExpandedQuestion(
                             expandedQuestion === index ? null : index
                           )
-                        }>
+                        }
+                      >
                         <div className="space-y-4">
                           <div className="flex items-start gap-3">
                             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                               {index + 1}
                             </div>
                             <div className="flex-1">
-                              <p className="font-semibold text-lg text-foreground">
+                              <p className="font-semibold text-xl text-foreground">
                                 {item.question}
                               </p>
                             </div>
@@ -480,7 +408,8 @@ export default function InterviewPrepPage() {
                               </div>
                               <Button
                                 className="w-full bg-transparent"
-                                variant="outline">
+                                variant="outline"
+                              >
                                 <Mic className="w-4 h-4 mr-2" />
                                 Practice Answer
                               </Button>
@@ -494,7 +423,7 @@ export default function InterviewPrepPage() {
                   {/* Next Steps */}
                   <Card className="p-6 border-2 shadow-lg bg-gradient-to-br from-primary/5 to-purple-500/5">
                     <div className="text-center space-y-4">
-                      <div className="inline-flex items-center gap-2 text-2xl font-bold">
+                      <div className="inline-flex items-center gap-2 text-3xl font-bold">
                         <CheckCircle2 className="w-6 h-6 text-green-600" />
                         <span>You're ready for this.</span>
                       </div>
@@ -502,7 +431,8 @@ export default function InterviewPrepPage() {
                         <Button
                           onClick={handleReset}
                           variant="outline"
-                          className="gap-2 bg-transparent">
+                          className="gap-2 bg-transparent"
+                        >
                           <Sparkles className="w-4 h-4" />
                           Generate New Interview
                         </Button>
@@ -521,11 +451,13 @@ export default function InterviewPrepPage() {
                 {/* Sidebar - Company Insights */}
                 <div className="space-y-6">
                   <Card className="p-6 border-2 shadow-lg sticky top-6">
-                    <h3 className="text-xl font-bold mb-4">Company Insights</h3>
+                    <h3 className="text-2xl font-bold mb-4">
+                      Company Insights
+                    </h3>
 
                     <div className="space-y-4">
                       <div>
-                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                        <h4 className="text-base font-semibold text-muted-foreground mb-2">
                           Recent News
                         </h4>
                         <div className="space-y-2">
@@ -540,7 +472,7 @@ export default function InterviewPrepPage() {
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                        <h4 className="text-base font-semibold text-muted-foreground mb-2">
                           Culture & Values
                         </h4>
                         <p className="text-sm p-3 rounded-lg bg-accent/50 border">
@@ -550,7 +482,7 @@ export default function InterviewPrepPage() {
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-semibold text-muted-foreground mb-3">
+                        <h4 className="text-base font-semibold text-muted-foreground mb-3">
                           Insider Intel
                         </h4>
                         <div className="space-y-3">
