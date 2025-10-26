@@ -20,7 +20,11 @@ import {
   Clock,
   Target,
 } from "lucide-react";
-import { mockQuestions, loadingSteps } from "@/lib/mockData";
+import {
+  mockQuestions as fallbackQuestions,
+  loadingSteps as fallbackLoadingSteps,
+} from "@/lib/mockData";
+import useDashboardData from "@/lib/useDashboardData";
 
 export default function InterviewPrepPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -39,7 +43,8 @@ export default function InterviewPrepPage() {
       setLoadingStep(0);
       const interval = setInterval(() => {
         setLoadingStep((prev) => {
-          if (prev < loadingSteps.length - 1) {
+          const steps = dashboard?.loadingSteps ?? fallbackLoadingSteps;
+          if (prev < steps.length - 1) {
             return prev + 1;
           }
           return prev;
@@ -79,26 +84,54 @@ export default function InterviewPrepPage() {
     setIsGenerating(true);
     setShowResults(false);
 
-    // Simulate generation steps
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const companyName = getCompanyName();
 
-    setIsGenerating(false);
-
-    // Save minimal data for the mock dashboard and navigate there
     try {
-      const payload = {
-        jobUrl: jobUrl || "",
-        interviewerName: interviewerName || "",
-        generatedAt: Date.now(),
-      };
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        sessionStorage.setItem("mockInterviewData", JSON.stringify(payload));
-      }
-    } catch (e) {
-      // ignore storage errors
-    }
+      // Call the endpoints API to generate the dashboard payload
+      const res = await fetch("/api/endpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyName, role: "Frontend Engineer" }),
+      });
 
-    router.push("/mock");
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("/api/endpoints returned error:", res.status, errText);
+        throw new Error("Failed to fetch dashboard data");
+      }
+
+      const json = await res.json();
+
+      // Persist the full dashboard payload to localStorage so /mock reads it
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          localStorage.setItem("dashboardData", JSON.stringify(json));
+        }
+      } catch (e) {
+        console.warn("Failed to write dashboardData to localStorage", e);
+      }
+
+      // Also store minimal mockInterviewData (used by /mock for jobUrl/interviewerName)
+      try {
+        const payload = {
+          jobUrl: jobUrl || "",
+          interviewerName: interviewerName || "",
+          generatedAt: Date.now(),
+        };
+        if (typeof window !== "undefined" && window.sessionStorage) {
+          sessionStorage.setItem("mockInterviewData", JSON.stringify(payload));
+        }
+      } catch (e) {
+        // ignore storage errors
+      }
+
+      setIsGenerating(false);
+      router.push("/mock");
+    } catch (err) {
+      console.error("Error generating dashboard:", err);
+      setIsGenerating(false);
+      alert("Failed to generate interview data. Please try again.");
+    }
   };
 
   const handleReset = () => {
@@ -117,9 +150,16 @@ export default function InterviewPrepPage() {
       const name = hostname.split(".")[0];
       return name.charAt(0).toUpperCase() + name.slice(1);
     } catch {
-      return "the Company";
+      return "Salesforce";
     }
   };
+
+  // Hook to load dashboard data and cache it in localStorage
+  const dashboardHook = useDashboardData({ companyName: getCompanyName() });
+  const dashboard = dashboardHook.data;
+  // questions come from the API if available; otherwise use fallback mock questions
+  const questions = dashboard?.questions ?? fallbackQuestions;
+  const loadingStepsUsed = dashboard?.loadingSteps ?? fallbackLoadingSteps;
 
   const isFormValid = resumeFile && jobUrl.trim() && interviewerName.trim();
 
@@ -165,7 +205,8 @@ export default function InterviewPrepPage() {
                       isDragging
                         ? "border-primary bg-primary/5 scale-[1.02]"
                         : "border-border hover:border-primary/50 hover:bg-accent/5"
-                    }`}>
+                    }`}
+                  >
                     <input
                       id="resume"
                       type="file"
@@ -252,7 +293,8 @@ export default function InterviewPrepPage() {
                   onClick={handleGenerate}
                   disabled={!isFormValid || isGenerating}
                   className="w-full h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
-                  size="lg">
+                  size="lg"
+                >
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -283,14 +325,15 @@ export default function InterviewPrepPage() {
                 </p>
 
                 <div className="max-w-md mx-auto space-y-4 mt-8">
-                  {loadingSteps.map((step, index) => (
+                  {loadingStepsUsed.map((step, index) => (
                     <div
                       key={index}
                       className={`flex items-center gap-3 p-4 rounded-lg transition-all duration-500 ${
                         index <= loadingStep
                           ? "bg-primary/10 border-2 border-primary/20"
                           : "bg-accent/30 border-2 border-transparent"
-                      }`}>
+                      }`}
+                    >
                       {index < loadingStep ? (
                         <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                       ) : index === loadingStep ? (
@@ -362,7 +405,7 @@ export default function InterviewPrepPage() {
                     <h2 className="text-3xl font-bold">
                       Mock Interview Questions
                     </h2>
-                    {mockQuestions.map((item, index) => (
+                    {questions.map((item, index) => (
                       <Card
                         key={index}
                         className={`p-6 border-2 transition-all duration-300 cursor-pointer hover:shadow-lg ${

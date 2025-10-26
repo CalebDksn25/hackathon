@@ -12,7 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import HiringSignals from "@/components/ui/hiring-signals";
-import { mockQuestions } from "@/lib/mockData";
+import { mockQuestions as fallbackQuestions } from "@/lib/mockData";
 
 export default function MockInterviewPage() {
   const router = useRouter();
@@ -50,6 +50,33 @@ export default function MockInterviewPage() {
       return "the Company";
     }
   };
+
+  const [dashboard, setDashboard] = useState<any | null>(null);
+  const [questions, setQuestions] = useState<any[]>(fallbackQuestions);
+
+  useEffect(() => {
+    // Prefer the generated dashboard stored in localStorage. Do not call the
+    // background hook here — we want the generated questions to be static once
+    // produced by the /api/endpoints call.
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("dashboardData") : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setDashboard(parsed);
+        if (parsed?.questions && Array.isArray(parsed.questions) && parsed.questions.length) {
+          setQuestions(parsed.questions);
+        } else {
+          setQuestions(fallbackQuestions);
+        }
+      } else {
+        setDashboard(null);
+        setQuestions(fallbackQuestions);
+      }
+    } catch (e) {
+      setDashboard(null);
+      setQuestions(fallbackQuestions);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
@@ -105,7 +132,7 @@ export default function MockInterviewPage() {
                   : "blur-sm opacity-60 pointer-events-none"
               }`}
             >
-              {mockQuestions.map((q, i) => (
+              {questions.map((q, i) => (
                 <Card key={i} className="p-4">
                   <div className="flex items-start gap-3">
                     <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
