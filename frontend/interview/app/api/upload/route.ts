@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData();
   const candidateIdFromForm = (formData.get("candidateId") as string) || "";
+  const jobUrl = (formData.get("jobUrl") as string) || "";
+  const interviewerName = (formData.get("interviewerName") as string) || "";
   const resumeFile = formData.get("resume");
   const filepondAll = formData.getAll("filepond");
   const candidateFile = (resumeFile ??
@@ -55,6 +57,8 @@ export async function POST(req: NextRequest) {
     const rows = {
       content: parsedText,
       session_id: sessionId,
+      jobUrl: jobUrl,
+      interviewerName: interviewerName,
     };
 
     const supa = supabaseAdmin();
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Build response and set cookie if it’s a new session
+  // Build response and set cookie if it's a new session
   const res = NextResponse.json({
     parsedText,
     fileName,

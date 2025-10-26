@@ -121,6 +121,8 @@ export default function InterviewPrepPage() {
       formData.append("resume", resumeFile);
       formData.append("candidateId", "");
       formData.append("filepond", resumeFile);
+      formData.append("jobUrl", jobUrl);
+      formData.append("interviewerName", interviewerName);
 
       const uploadResponse = await fetch("/api/upload", {
         method: "POST",
