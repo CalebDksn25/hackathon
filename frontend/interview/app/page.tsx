@@ -31,6 +31,8 @@ export default function InterviewPrepPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
+  const [parsedText, setParsedText] = useState<string | null>(null);
+  const [claudeData, setClaudeData] = useState<any>(null);
 
   useEffect(() => {
     if (isGenerating) {
@@ -163,8 +165,7 @@ export default function InterviewPrepPage() {
                       isDragging
                         ? "border-primary bg-primary/5 scale-[1.02]"
                         : "border-border hover:border-primary/50 hover:bg-accent/5"
-                    }`}
-                  >
+                    }`}>
                     <input
                       id="resume"
                       type="file"
@@ -198,6 +199,20 @@ export default function InterviewPrepPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Parsed Text Display */}
+                {parsedText && (
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">
+                      Parsed Text
+                    </Label>
+                    <div className="p-4 border-2 rounded-lg bg-accent/30 border-border max-h-60 overflow-y-auto">
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {parsedText}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Job URL */}
                 <div className="space-y-2">
@@ -237,8 +252,7 @@ export default function InterviewPrepPage() {
                   onClick={handleGenerate}
                   disabled={!isFormValid || isGenerating}
                   className="w-full h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
-                  size="lg"
-                >
+                  size="lg">
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -276,8 +290,7 @@ export default function InterviewPrepPage() {
                         index <= loadingStep
                           ? "bg-primary/10 border-2 border-primary/20"
                           : "bg-accent/30 border-2 border-transparent"
-                      }`}
-                    >
+                      }`}>
                       {index < loadingStep ? (
                         <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                       ) : index === loadingStep ? (
