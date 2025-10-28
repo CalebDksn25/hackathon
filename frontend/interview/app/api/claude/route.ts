@@ -1,38 +1,62 @@
-// app/api/agent/route.ts
+// app/api/claude/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { execSync } from "child_process";
+import { Anthropic } from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type AgentEvent = { type?: string; content?: string };
+// ---- System Prompt: instruct JSON-only output (no tools / no prose)
+const systemPrompt = `
+You are an interviewing-prep analyst.
+
+Only use the provided inputs: resume_text, job_description (optional),
+evidence[] (Parallel search results), and company_insights (optional).
+Do NOT fetch data or use external tools.
+
+Return ONE valid JSON object ONLY.
+- No code fences
+- No Markdown
+- No extra text or commentary
+
+The JSON must include:
+- "what_to_expect": { summary, rounds[], topic_weights[], timeline_hint, difficulty, confidence (0..1), source_ids[] }
+- "top_questions": exactly 5 items, each with { question, category, rationale, how_to_prepare[], predicted_difficulty, evaluation_criteria[], source_ids[] }
+- "company_insights_out": { one_liner, products[], tech_stack[], recent_news_or_ships[], culture_themes[], role_specific_context, reading_list[{title,url,source_id|null}], confidence (0..1), source_ids[] }
+
+Rules:
+- Cite evidence by filling source_ids with IDs from the evidence array when available.
+- If a field lacks support, use "unknown" or "insufficient_evidence".
+- Be concise and factual.
+`;
+
+function extractJsonFromText(s: string) {
+  // Strip code fences if model ignored instructions
+  const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const raw = fenced ? fenced[1].trim() : s.trim();
+
+  // Try direct parse
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  // Fallback: grab the first {...} block
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    const slice = raw.slice(start, end + 1);
+    return JSON.parse(slice);
+  }
+  throw new Error("Claude did not return valid JSON.");
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Get the full path to node
-    let nodePath = process.env.NODE || "/usr/local/bin/node";
-    try {
-      nodePath = execSync("which node", { encoding: "utf-8" }).trim();
-    } catch {
-      // Fallback to default
-    }
-
-    // Ensure PATH includes common node locations
-    if (!process.env.PATH) {
-      process.env.PATH = "/usr/local/bin:/usr/bin:/bin";
-    } else if (!process.env.PATH.includes("/usr/local/bin")) {
-      process.env.PATH = `/usr/local/bin:${process.env.PATH}`;
-    }
-
-    // Fetch the most recent document from Supabase
+    // 1) Load latest resume/content (your existing Supabase pattern)
     const supa = supabaseAdmin();
-
-    // Try to fetch with optional fields first
-    let { data: documents, error: dbError } = await supa
+    const { data: documents, error: dbError } = await supa
       .from("documents")
-      .select("id, content, created_at")
+      .select("id, content, created_at, jobUrl, interviewerName")
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -43,34 +67,18 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    if (!documents || documents.length === 0) {
+    if (!documents?.length) {
       return NextResponse.json(
         { error: "No documents found in database" },
         { status: 404 }
       );
     }
 
-    const resumeContent = documents[0].content || "";
-    let jobUrl = "";
-    let interviewerName = "";
-
-    // Try to fetch the optional fields separately if they exist
-    try {
-      const docId = documents[0].id;
-      const { data: docData } = await supa
-        .from("documents")
-        .select("jobUrl, interviewerName")
-        .eq("id", docId)
-        .single();
-
-      jobUrl = docData?.jobUrl || "";
-      interviewerName = docData?.interviewerName || "";
-    } catch (e) {
-      // Fields don't exist, that's okay
-      console.log("Optional fields (jobUrl, interviewerName) not available");
-    }
-
+    const {
+      content: resumeContent,
+      jobUrl = "",
+      interviewerName = "",
+    } = documents[0] ?? {};
     if (!resumeContent) {
       return NextResponse.json(
         { error: "No resume content found in database" },
@@ -78,78 +86,83 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { prompt } = await req.json();
-    const chunks: string[] = [];
+    // 2) Request body from client (Parallel results + optional fields)
+    const body = await req.json();
+    const {
+      parallelResults = [], // results from your /api/parallel
+      company_insights = null, // optional
+      job_description = "", // optional if you have it
+      company_name = "", // optional
+      role_title = "", // optional
+    } = body || {};
 
-    const stream = query({
-      prompt: `
-        ${prompt ?? ""}
-        
-        Resume Data:
-        ${resumeContent}
-        
-        Job URL: ${jobUrl || "Not provided"}
-        Interviewer Name: ${interviewerName || "Not provided"}
-      `,
-      options: {
-        systemPrompt: `
-          You are an interviewing-prep analyst.
-          You receive:
-          - Parsed resume text describing the candidate's skills, projects, and experience.
-          - Structured evidence from the Parallel AI Search/Task APIs (Reddit, Glassdoor, company blogs, news).
-          - Optional company insights (products, tech stack, culture, interview format, recent news).
-    
-          Your only output must be a single valid JSON object, no extra text or formatting.
-    
-          The JSON must contain:
-          - "what_to_expect": summary of likely interview format, topics, difficulty, timeline (grounded in evidence).
-          - "top_questions": exactly 5 likely questions tailored to BOTH the role and the candidate's resume. Each question should include category, rationale, how_to_prepare, predicted_difficulty, evaluation_criteria, and source_ids.
-          - "company_insights_out": a concise company brief with products, tech_stack, recent_news_or_ships, culture_themes, role_specific_context, and reading_list.
-    
-          Rules:
-          - Use the resume text to align questions with the candidate's background (e.g., ask about skills/projects they mention, or test gaps vs. job requirements).
-          - Ground all other content in provided evidence or company_insights. If unavailable, write "unknown" or "insufficient_evidence".
-          - Include "source_ids" referencing the evidence you used.
-          - Be concise and factual. Avoid fluff.
-          - Return only the JSON object. Do not output explanations, Markdown, or extra commentary.
-        `,
-        env: {
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-          PATH: process.env.PATH,
+    // 3) Normalize Parallel evidence to a standard shape for the model
+    const evidenceArray = Array.isArray(parallelResults?.results)
+      ? parallelResults.results
+      : Array.isArray(parallelResults)
+      ? parallelResults
+      : [];
+
+    const normalizedEvidence = evidenceArray.map((e: any, i: number) => ({
+      id: String(e.id ?? `e${i + 1}`),
+      title: e.title ?? e.sourceTitle ?? "Unknown",
+      url: e.url ?? e.link ?? null,
+      excerpt: e.excerpt ?? e.text ?? e.content ?? "",
+      source_type: e.source_type ?? e.provider ?? "other",
+      retrieved_at: e.retrieved_at ?? null,
+    }));
+
+    // 4) Build the user payload Claude will see
+    const userPayload = {
+      company_name,
+      role_title,
+      resume_text: resumeContent,
+      job_description,
+      job_url: jobUrl,
+      interviewer_name: interviewerName,
+      evidence: normalizedEvidence,
+      company_insights,
+    };
+
+    // 5) Call Anthropic SDK (NOT the Agent SDK) — no tools available
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+    const msg = await anthropic.messages.create({
+      model: "claude-3-7-sonnet-20250219",
+      temperature: 0,
+      max_tokens: 2000, // keep responses bounded
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: JSON.stringify(userPayload) }],
         },
-      },
+      ],
+      // NOTE: Some SDK versions support: response_format: { type: "json" }
+      // We're not relying on it to avoid type errors across versions.
     });
 
-    for await (const raw of stream as AsyncIterable<unknown>) {
-      console.log("Raw event:", JSON.stringify(raw));
-      const msg = raw as any;
-      console.log("Parsed msg type:", msg?.type);
+    // 6) Parse the model response as JSON
+    // If your SDK/version returns a JSON block type when instructed, handle it:
+    const first = msg.content?.[0] as any;
+    let jsonOut: any;
 
-      // Handle 'assistant' type events - check if there's content
-      if (msg?.type === "assistant" && msg?.message?.content) {
-        const content = msg.message.content;
-        // Content can be an array of text items
-        if (Array.isArray(content)) {
-          for (const item of content) {
-            if (item.type === "text" && typeof item.text === "string") {
-              console.log("Adding chunk from assistant:", item.text);
-              chunks.push(item.text);
-            }
-          }
-        }
-      }
-
-      // Handle 'result' type events - contains final result text
-      if (msg?.type === "result" && typeof msg?.result === "string") {
-        console.log("Adding result chunk:", msg.result);
-        chunks.push(msg.result);
-      }
+    if (first?.type === "json" && first?.json) {
+      jsonOut = first.json;
+    } else if (first?.type === "text" && typeof first.text === "string") {
+      jsonOut = extractJsonFromText(first.text);
+    } else {
+      // Fallback: try to merge any text blocks into one string and parse
+      const whole = msg.content
+        .map((b: any) => (b?.type === "text" ? b.text : ""))
+        .join("\n");
+      jsonOut = extractJsonFromText(whole);
     }
 
-    return NextResponse.json({ text: chunks.join("") }, { status: 200 });
+    return NextResponse.json(jsonOut, { status: 200 });
   } catch (err) {
+    console.error("Error in /api/claude:", err);
     const message = err instanceof Error ? err.message : String(err);
-    console.error("Error in /api/search:", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

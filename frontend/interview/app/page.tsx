@@ -70,6 +70,7 @@ export default function InterviewPrepPage() {
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
   const [parsedText, setParsedText] = useState<string | null>(null);
   const [claudeData, setClaudeData] = useState<any>(null);
+  const [parallelResults, setParallelResults] = useState<any>(null);
 
   useEffect(() => {
     if (isGenerating) {
@@ -137,7 +138,39 @@ export default function InterviewPrepPage() {
       const uploadData = await uploadResponse.json();
       setParsedText(uploadData.parsedText);
 
-      // Call Claude API to generate interview prep
+      // Call Parallel API to search for company information
+      let parallelResultsData = [];
+      try {
+        console.log("Calling Parallel API...");
+        const company = getCompanyName();
+        const parallelResponse = await fetch("/api/parellel", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            companyName: company,
+            jobUrl,
+            interviewerName,
+          }),
+        });
+
+        if (!parallelResponse.ok) {
+          console.warn(
+            "Parallel API call failed, continuing without company insights"
+          );
+          parallelResultsData = [];
+        } else {
+          parallelResultsData = await parallelResponse.json();
+          setParallelResults(parallelResultsData);
+          console.log("Parallel results:", parallelResultsData);
+        }
+      } catch (parallelError) {
+        console.error("Error calling Parallel API:", parallelError);
+        parallelResultsData = [];
+      }
+
+      // Call Claude API to generate interview prep with Parallel results as context
       console.log("Calling Claude API...");
       const claudeResponse = await fetch("/api/claude", {
         method: "POST",
@@ -145,8 +178,8 @@ export default function InterviewPrepPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt:
-            "Generate personalized interview preparation based on the uploaded resume and job details.",
+          prompt: "Here is the job specific data:",
+          parallelResults: parallelResultsData,
         }),
       });
 
@@ -154,16 +187,26 @@ export default function InterviewPrepPage() {
         throw new Error("Failed to generate interview prep");
       }
 
-      const claudeData = await claudeResponse.json();
-      console.log("Claude response:", claudeData);
+      const claudeResponseData = await claudeResponse.json();
+      console.log("Claude response:", claudeResponseData);
 
-      try {
-        const parsedData = JSON.parse(claudeData.text);
-        setClaudeData(parsedData);
-      } catch (parseError) {
-        console.error("Error parsing Claude response:", parseError);
-        // If parsing fails, store the raw text
-        setClaudeData({ raw: claudeData.text });
+      // The Claude route now returns JSON directly (not wrapped in { text: ... })
+      // Check if it's already the parsed object or if it's wrapped in text
+      if (claudeResponseData.what_to_expect) {
+        // Already parsed JSON object
+        setClaudeData(claudeResponseData);
+      } else if (claudeResponseData.text) {
+        // Wrapped in text field, parse it
+        try {
+          const parsedData = JSON.parse(claudeResponseData.text);
+          setClaudeData(parsedData);
+        } catch (parseError) {
+          console.error("Error parsing Claude response:", parseError);
+          setClaudeData({ error: "Failed to parse interview data" });
+        }
+      } else {
+        // Set the data directly
+        setClaudeData(claudeResponseData);
       }
 
       setIsGenerating(false);
@@ -184,6 +227,7 @@ export default function InterviewPrepPage() {
     setExpandedQuestion(null);
     setParsedText(null);
     setClaudeData(null);
+    setParallelResults(null);
   };
 
   const getCompanyName = () => {
@@ -392,104 +436,168 @@ export default function InterviewPrepPage() {
               {/* Dashboard Header */}
               <div className="text-center space-y-3">
                 <h1 className="text-3xl md:text-4xl font-bold text-balance">
-                  Your Personalized Interview for Frontend Developer at{" "}
-                  {getCompanyName()}
+                  Your Personalized Interview Prep
                 </h1>
-                <p className="text-muted-foreground">
-                  Interviewer: {interviewerName}
-                </p>
+                {interviewerName && (
+                  <p className="text-muted-foreground">
+                    Interviewer: {interviewerName}
+                  </p>
+                )}
               </div>
 
               <div className="grid lg:grid-cols-3 gap-6">
                 {/* Main Content - Interview Questions */}
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Summary Card */}
-                  <Card className="p-6 border-2 shadow-lg">
-                    <h2 className="text-xl font-bold mb-4">
-                      Here's what to expect based on our analysis:
-                    </h2>
-                    <div className="flex flex-wrap gap-3">
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary border border-primary/20">
-                        <Target className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          Focus: React, REST APIs, teamwork
-                        </span>
-                      </div>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 text-purple-600 border border-purple-500/20">
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          Type: Technical + Behavioral Mix
-                        </span>
-                      </div>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-600 border border-blue-500/20">
-                        <Sparkles className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          Topic: AI integrations in CRM tools
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
+                  {/* Summary Card - What to Expect */}
+                  {claudeData?.what_to_expect && (
+                    <Card className="p-6 border-2 shadow-lg">
+                      <h2 className="text-xl font-bold mb-4">
+                        Here's what to expect:
+                      </h2>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {claudeData.what_to_expect.summary}
+                      </p>
 
-                  {/* Mock Interview Questions */}
-                  <div className="space-y-4">
-                    <h2 className="text-2xl font-bold">
-                      Mock Interview Questions
-                    </h2>
-                    {mockQuestions.map((item, index) => (
-                      <Card
-                        key={index}
-                        className={`p-6 border-2 transition-all duration-300 cursor-pointer hover:shadow-lg ${
-                          expandedQuestion === index
-                            ? "shadow-lg border-primary/50"
-                            : ""
-                        }`}
-                        onClick={() =>
-                          setExpandedQuestion(
-                            expandedQuestion === index ? null : index
-                          )
-                        }>
-                        <div className="space-y-4">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-semibold text-lg text-foreground">
-                                {item.question}
-                              </p>
-                            </div>
+                      {claudeData.what_to_expect.rounds &&
+                        claudeData.what_to_expect.rounds.length > 0 && (
+                          <div className="space-y-2 mb-4">
+                            <h3 className="font-semibold text-sm">
+                              Interview Rounds:
+                            </h3>
+                            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                              {claudeData.what_to_expect.rounds.map(
+                                (round: string, i: number) => (
+                                  <li key={i}>{round}</li>
+                                )
+                              )}
+                            </ul>
                           </div>
+                        )}
 
-                          {expandedQuestion === index && (
-                            <div className="space-y-4 pl-11 animate-in fade-in slide-in-from-top-2 duration-300">
-                              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                <p className="text-sm font-semibold text-blue-700 mb-1">
-                                  Why it matters:
-                                </p>
-                                <p className="text-sm text-blue-900/80">
-                                  {item.why}
-                                </p>
+                      {claudeData.what_to_expect.topic_weights &&
+                        claudeData.what_to_expect.topic_weights.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {claudeData.what_to_expect.topic_weights.map(
+                              (topic: string, i: number) => (
+                                <div
+                                  key={i}
+                                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                  <Target className="w-3 h-3" />
+                                  <span className="text-xs">{topic}</span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
+
+                      {claudeData.what_to_expect.difficulty && (
+                        <p className="text-sm mt-3">
+                          <strong>Difficulty:</strong>{" "}
+                          {claudeData.what_to_expect.difficulty}
+                        </p>
+                      )}
+                    </Card>
+                  )}
+
+                  {/* Interview Questions */}
+                  {claudeData?.top_questions &&
+                    claudeData.top_questions.length > 0 && (
+                      <div className="space-y-4">
+                        <h2 className="text-2xl font-bold">
+                          Top Interview Questions
+                        </h2>
+                        {claudeData.top_questions.map(
+                          (q: any, index: number) => (
+                            <Card
+                              key={index}
+                              className={`p-6 border-2 transition-all duration-300 cursor-pointer hover:shadow-lg ${
+                                expandedQuestion === index
+                                  ? "shadow-lg border-primary/50"
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                setExpandedQuestion(
+                                  expandedQuestion === index ? null : index
+                                )
+                              }>
+                              <div className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                    {index + 1}
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-lg text-foreground">
+                                      {q.question}
+                                    </p>
+                                    {q.category && (
+                                      <p className="text-sm text-muted-foreground mt-1">
+                                        {q.category}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {expandedQuestion === index && (
+                                  <div className="space-y-4 pl-11 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    {q.rationale && (
+                                      <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                                        <p className="text-sm font-semibold text-blue-700 mb-1">
+                                          Why this question matters:
+                                        </p>
+                                        <p className="text-sm text-blue-900/80">
+                                          {q.rationale}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {q.how_to_prepare &&
+                                      Array.isArray(q.how_to_prepare) &&
+                                      q.how_to_prepare.length > 0 && (
+                                        <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                                          <p className="text-sm font-semibold text-green-700 mb-2">
+                                            How to prepare:
+                                          </p>
+                                          <ul className="list-disc list-inside space-y-1 text-sm text-green-900/80">
+                                            {q.how_to_prepare.map(
+                                              (tip: string, i: number) => (
+                                                <li key={i}>{tip}</li>
+                                              )
+                                            )}
+                                          </ul>
+                                        </div>
+                                      )}
+
+                                    {q.evaluation_criteria &&
+                                      Array.isArray(q.evaluation_criteria) &&
+                                      q.evaluation_criteria.length > 0 && (
+                                        <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                                          <p className="text-sm font-semibold text-purple-700 mb-2">
+                                            What they're looking for:
+                                          </p>
+                                          <ul className="list-disc list-inside space-y-1 text-sm text-purple-900/80">
+                                            {q.evaluation_criteria.map(
+                                              (criteria: string, i: number) => (
+                                                <li key={i}>{criteria}</li>
+                                              )
+                                            )}
+                                          </ul>
+                                        </div>
+                                      )}
+
+                                    {q.predicted_difficulty && (
+                                      <div className="text-sm text-muted-foreground">
+                                        <strong>Difficulty:</strong>{" "}
+                                        {q.predicted_difficulty}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                                <p className="text-sm font-semibold text-green-700 mb-1">
-                                  Tips:
-                                </p>
-                                <p className="text-sm text-green-900/80">
-                                  {item.tips}
-                                </p>
-                              </div>
-                              <Button
-                                className="w-full bg-transparent"
-                                variant="outline">
-                                <Mic className="w-4 h-4 mr-2" />
-                                Practice Answer
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
+                            </Card>
+                          )
+                        )}
+                      </div>
+                    )}
 
                   {/* Next Steps */}
                   <Card className="p-6 border-2 shadow-lg bg-gradient-to-br from-primary/5 to-purple-500/5">
@@ -524,71 +632,126 @@ export default function InterviewPrepPage() {
                     <h3 className="text-xl font-bold mb-4">Company Insights</h3>
 
                     <div className="space-y-4">
-                      <div>
-                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">
-                          Recent News
-                        </h4>
-                        <div className="space-y-2">
-                          <p className="text-sm p-3 rounded-lg bg-accent/50 border">
-                            {getCompanyName()} announces new AI-powered features
-                            for enterprise customers
-                          </p>
-                          <p className="text-sm p-3 rounded-lg bg-accent/50 border">
-                            Company expands engineering team by 30% in Q4
-                          </p>
-                        </div>
-                      </div>
+                      {claudeData?.company_insights_out && (
+                        <>
+                          {claudeData.company_insights_out.one_liner && (
+                            <div>
+                              <p className="text-sm p-3 rounded-lg bg-primary/10 border border-primary/20">
+                                {claudeData.company_insights_out.one_liner}
+                              </p>
+                            </div>
+                          )}
 
-                      <div>
-                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">
-                          Culture & Values
-                        </h4>
-                        <p className="text-sm p-3 rounded-lg bg-accent/50 border">
-                          Known for innovation-first mindset and collaborative
-                          work environment
-                        </p>
-                      </div>
+                          {claudeData.company_insights_out
+                            .recent_news_or_ships &&
+                            claudeData.company_insights_out.recent_news_or_ships
+                              .length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                                  Recent News
+                                </h4>
+                                <div className="space-y-2">
+                                  {claudeData.company_insights_out.recent_news_or_ships.map(
+                                    (news: string, i: number) => (
+                                      <p
+                                        key={i}
+                                        className="text-sm p-3 rounded-lg bg-accent/50 border">
+                                        {news}
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
-                      <div>
-                        <h4 className="text-sm font-semibold text-muted-foreground mb-3">
-                          Insider Intel
-                        </h4>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-3">
-                            <TrendingUp className="w-5 h-5 text-primary flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium">
-                                Glassdoor Difficulty
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                3.1/5
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Clock className="w-5 h-5 text-primary flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium">
-                                Average Length
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                45 minutes
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Target className="w-5 h-5 text-primary flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium">
-                                Behavioral Focus
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                60%
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                          {claudeData.company_insights_out.products &&
+                            claudeData.company_insights_out.products.length >
+                              0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                                  Products & Services
+                                </h4>
+                                <div className="space-y-1">
+                                  {claudeData.company_insights_out.products.map(
+                                    (product: string, i: number) => (
+                                      <p
+                                        key={i}
+                                        className="text-sm text-muted-foreground">
+                                        • {product}
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          {claudeData.company_insights_out.tech_stack &&
+                            claudeData.company_insights_out.tech_stack.length >
+                              0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                                  Tech Stack
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {claudeData.company_insights_out.tech_stack.map(
+                                    (tech: string, i: number) => (
+                                      <span
+                                        key={i}
+                                        className="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                                        {tech}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          {claudeData.company_insights_out.culture_themes &&
+                            claudeData.company_insights_out.culture_themes
+                              .length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                                  Culture & Values
+                                </h4>
+                                <div className="space-y-2">
+                                  {claudeData.company_insights_out.culture_themes.map(
+                                    (theme: string, i: number) => (
+                                      <p
+                                        key={i}
+                                        className="text-sm p-3 rounded-lg bg-accent/50 border">
+                                        {theme}
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          {claudeData.company_insights_out.reading_list &&
+                            claudeData.company_insights_out.reading_list
+                              .length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                                  Reading List
+                                </h4>
+                                <div className="space-y-2">
+                                  {claudeData.company_insights_out.reading_list.map(
+                                    (item: any, i: number) => (
+                                      <a
+                                        key={i}
+                                        href={item.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block text-sm p-3 rounded-lg bg-accent/50 border hover:bg-accent transition-colors">
+                                        {item.title}
+                                      </a>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                        </>
+                      )}
                     </div>
                   </Card>
                 </div>

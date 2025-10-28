@@ -1,0 +1,168 @@
+{
+  "what_to_expect": {
+    "summary": "BAE Systems Software Engineering Intern interviews typically involve technical assessments, behavioral questions, and discussions about your experience with software development and problem-solving. The process is designed to evaluate both your technical skills and cultural fit with the defense/aerospace industry.",
+    "rounds": [
+      "Initial phone or virtual screening interview",
+      "Technical assessment (coding problems, algorithms, data structures)",
+      "Panel interview with team members and potential managers",
+      "Behavioral questions focused on teamwork and problem-solving"
+    ],
+    "topic_weights": [
+      "Technical programming knowledge (40%)",
+      "Problem-solving abilities (25%)",
+      "Project experience (15%)",
+      "Teamwork and communication (15%)",
+      "Defense industry interest/knowledge (5%)"
+    ],
+    "timeline_hint": "Typically 2-3 weeks from application to offer for internship positions",
+    "difficulty": "Moderate to challenging, with focus on fundamentals rather than extremely advanced topics",
+    "confidence": 0.7,
+    "source_ids": ["e2", "e5", "e6"]
+  },
+  "top_questions": [
+    {
+      "question": "Can you describe a challenging programming problem you've faced and how you approached solving it?",
+      "category": "Technical Problem-Solving",
+      "rationale": "BAE Systems values problem-solving abilities in their software engineers. This question evaluates your analytical thinking and technical approach to challenges.",
+      "how_to_prepare": [
+        "Review your projects (like AI Financial Health Advisor, Nocrate) for specific challenges",
+        "Practice articulating your problem-solving methodology",
+        "Be ready to discuss trade-offs in your solution approach",
+        "Prepare to explain technical decisions made during implementation"
+      ],
+      "predicted_difficulty": "Medium",
+      "evaluation_criteria": [
+        "Clarity in problem definition",
+        "Structured approach to solution",
+        "Technical knowledge application",
+        "Consideration of alternatives"
+      ],
+      "source_ids": ["e5", "e6"]
+    },
+    {
+      "question": "Explain a time when you had to work with a team to deliver a software project under tight deadlines.",
+      "category": "Teamwork & Project Management",
+      "rationale": "Defense contractors like BAE Systems often work on time-sensitive projects requiring effective collaboration. Your hackathon experience and leadership roles make this relevant.",
+      "how_to_prepare": [
+        "Reflect on your hackathon experience delivering in 24 hours",
+        "Consider your leadership role in WCO and project teams",
+        "Prepare to discuss how you handled conflicts or challenges",
+        "Think about specific contributions you made to team success"
+      ],
+      "predicted_difficulty": "Medium",
+      "evaluation_criteria": [
+        "Team coordination abilities",
+        "Time management skills",
+        "Communication effectiveness",
+        "Adaptability under pressure"
+      ],
+      "source_ids": ["e2", "e8"]
+    },
+    {
+      "question": "How would you implement a secure authentication system for a sensitive application?",
+      "category": "Technical Security",
+      "rationale": "Security is paramount in defense industry applications. Your experience with secure login systems makes this relevant to assess your security awareness.",
+      "how_to_prepare": [
+        "Review your implementation of secure login systems at Voodies",
+        "Research industry best practices for authentication",
+        "Consider multi-factor authentication approaches",
+        "Be prepared to discuss encryption and secure data storage"
+      ],
+      "predicted_difficulty": "Hard",
+      "evaluation_criteria": [
+        "Security knowledge depth",
+        "Understanding of authentication protocols",
+        "Awareness of potential vulnerabilities",
+        "Implementation considerations"
+      ],
+      "source_ids": ["e3", "e5"]
+    },
+    {
+      "question": "What interests you about working in the defense industry, specifically at BAE Systems?",
+      "category": "Motivation & Cultural Fit",
+      "rationale": "BAE Systems wants to ensure candidates are genuinely interested in the defense sector and align with their mission and values.",
+      "how_to_prepare": [
+        "Research BAE Systems' core values and mission",
+        "Identify specific defense/aerospace projects that interest you",
+        "Consider how your technical skills apply to defense applications",
+        "Prepare to discuss long-term career goals in this sector"
+      ],
+      "predicted_difficulty": "Medium",
+      "evaluation_criteria": [
+        "Knowledge of BAE Systems",
+        "Alignment with company values",
+        "Genuine interest in defense applications",
+        "Long-term potential fit"
+      ],
+      "source_ids": ["e3", "e8"]
+    },
+    {
+      "question": "Describe your experience with any of these technologies: Java, Python, C++, or cloud services like AWS.",
+      "category": "Technical Experience",
+      "rationale": "These are core technologies used at BAE Systems, and your resume shows experience with all of them, making this a likely discussion point.",
+      "how_to_prepare": [
+        "Review your projects that used Java, Python, C++",
+        "Prepare specific examples of AWS implementation (Lambda, Bedrock)",
+        "Be ready to discuss depth of knowledge in each technology",
+        "Consider how these technologies were applied in your projects"
+      ],
+      "predicted_difficulty": "Medium",
+      "evaluation_criteria": [
+        "Technical proficiency level",
+        "Practical application experience",
+        "Understanding of technology strengths/limitations",
+        "Ability to learn new related technologies"
+      ],
+      "source_ids": ["e3", "e5", "e10"]
+    }
+  ],
+  "company_insights_out": {
+    "one_liner": "BAE Systems is a global defense, aerospace, and security company that develops advanced technology solutions for national security and critical infrastructure protection.",
+    "products": [
+      "Defense electronics systems",
+      "Military aircraft and components",
+      "Naval vessels and maritime systems",
+      "Cybersecurity solutions",
+      "Intelligence and surveillance systems"
+    ],
+    "tech_stack": [
+      "Java",
+      "Python",
+      "C++",
+      "Cloud services (AWS)",
+      "Embedded systems"
+    ],
+    "recent_news_or_ships": [
+      "Expanding internship programs for software engineering",
+      "Increasing focus on digital transformation and AI applications",
+      "Developing next-generation defense technologies"
+    ],
+    "culture_themes": [
+      "Mission-driven work environment",
+      "Focus on innovation and technical excellence",
+      "Emphasis on security and integrity",
+      "Collaborative team structures",
+      "Professional development opportunities"
+    ],
+    "role_specific_context": "Software Engineering Interns at BAE Systems work on real-world defense and security applications, gaining hands-on experience with cutting-edge technologies while contributing to projects that have national security implications.",
+    "reading_list": [
+      {
+        "title": "BAE Systems Company Values",
+        "url": "https://careers.baesystems.com/life-at-bae-systems/our-values",
+        "source_id": "e8"
+      },
+      {
+        "title": "BAE Systems Internship Programs",
+        "url": "https://careers.baesystems.com/students-graduates-and-career-changers/internships",
+        "source_id": "e7"
+      },
+      {
+        "title": "Software Engineering Intern Position Details",
+        "url": "https://jobs.baesystems.com/global/en/job/115385BR/Software-Engineering-Intern-Summer-2026",
+        "source_id": "e3"
+      }
+    ],
+    "confidence": 0.8,
+    "source_ids": ["e3", "e7", "e8", "e10"]
+  }
+}

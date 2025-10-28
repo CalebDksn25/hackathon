@@ -41,21 +41,41 @@ export async function POST(req: NextRequest) {
   const fileBuffer = Buffer.from(await candidateFile.arrayBuffer());
   await fs.writeFile(tempFilePath, fileBuffer);
 
-  const pdfParser = new (PDFParser as any)(null, 1);
-  await new Promise<void>((resolve, reject) => {
-    pdfParser.on("pdfParser_dataError", (errData: any) =>
-      reject(errData?.parserError ?? "PDF parse error")
-    );
-    pdfParser.on("pdfParser_dataReady", () => {
-      parsedText = (pdfParser as any).getRawTextContent();
-      resolve();
+  try {
+    const pdfParser = new (PDFParser as any)(null, 1);
+    await new Promise<void>((resolve, reject) => {
+      pdfParser.on("pdfParser_dataError", (errData: any) =>
+        reject(errData?.parserError ?? "PDF parse error")
+      );
+      pdfParser.on("pdfParser_dataReady", () => {
+        parsedText = (pdfParser as any).getRawTextContent();
+        resolve();
+      });
+      pdfParser.loadPDF(tempFilePath);
     });
-    pdfParser.loadPDF(tempFilePath);
-  });
+  } finally {
+    // Clean up temp file
+    try {
+      await fs.unlink(tempFilePath);
+    } catch (unlinkError) {
+      console.error("Error deleting temp file:", unlinkError);
+    }
+  }
+
+  // Sanitize the text to remove null bytes and other problematic characters
+  const sanitizeText = (text: string): string => {
+    return text
+      .replace(/\0/g, "") // Remove null bytes
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Remove other control characters
+      .replace(/\uFEFF/g, ""); // Remove BOM
+  };
+
+  const sanitizedText = sanitizeText(parsedText);
+  console.log("Sanitized text length:", sanitizedText.length);
 
   try {
     const rows = {
-      content: parsedText,
+      content: sanitizedText,
       session_id: sessionId,
       jobUrl: jobUrl,
       interviewerName: interviewerName,
@@ -77,7 +97,7 @@ export async function POST(req: NextRequest) {
 
   // Build response and set cookie if it's a new session
   const res = NextResponse.json({
-    parsedText,
+    parsedText: sanitizedText,
     fileName,
     sessionId,
   });
